@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="tr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YogaAI - Akıllı Yoga Poz Analizi & Postür Koçu</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        },
+                        darkbg: '#0F172A',
+                        darkcard: '#1E293B',
+                        darkborder: '#334155'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glow-brand {
+            box-shadow: 0 0 25px rgba(99, 102, 241, 0.25);
+        }
+    </style>
+</head>
+<body class="bg-darkbg text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-darkborder/60 bg-darkcard/50 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-violet-500 flex items-center justify-center shadow-lg shadow-brand-500/30">
+                    <i data-lucide="activity" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <span class="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">YogaAI Studio</span>
+                    <span class="text-xs ml-2 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">v2.0 Model Aktif</span>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <span class="inline-flex items-center text-xs text-slate-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2"></span>
+                    MediaPipe Pose + Deep Learning
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- LEFT COLUMN: Input & Video/Image Display (7 Cols) -->
+        <div class="lg:col-span-7 flex flex-col space-y-4">
+            
+            <!-- Mode Switcher Tabs -->
+            <div class="flex p-1 bg-slate-800/80 rounded-xl border border-darkborder">
+                <button id="tab-webcam" onclick="switchMode('webcam')" class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 transition-all bg-brand-600 text-white shadow-md">
+                    <i data-lucide="video" class="w-4 h-4"></i>
+                    <span>Canlı Kamera</span>
+                </button>
+                <button id="tab-upload" onclick="switchMode('upload')" class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 transition-all text-slate-400 hover:text-white">
+                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                    <span>Fotoğraf Yükle</span>
+                </button>
+                <button id="tab-presets" onclick="switchMode('presets')" class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 transition-all text-slate-400 hover:text-white">
+                    <i data-lucide="grid" class="w-4 h-4"></i>
+                    <span>Örnek Pozlar</span>
+                </button>
+            </div>
+
+            <!-- Viewport Container -->
+            <div class="glass-panel rounded-2xl overflow-hidden p-3 relative flex-1 flex flex-col min-h-[440px]">
+                
+                <!-- WEBCAM MODE -->
+                <div id="view-webcam" class="flex-1 flex flex-col items-center justify-center relative w-full h-full">
+                    <div id="camera-placeholder" class="text-center p-8">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-800 flex items-center justify-center border border-slate-700">
+                            <i data-lucide="camera" class="w-8 h-8 text-slate-400"></i>
+                        </div>
+                        <h3 class="text-base font-semibold text-slate-200">Kamerayı Başlatın</h3>
+                        <p class="text-xs text-slate-400 max-w-xs mt-1 mb-4">Tarayıcınızın kamerasını kullanarak anlık postür analizi ve açı kontrolü yapın.</p>
+                        <button onclick="startWebcam()" class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 font-semibold text-sm shadow-lg shadow-brand-500/25 transition inline-flex items-center space-x-2">
+                            <i data-lucide="play" class="w-4 h-4"></i>
+                            <span>Kamerayı Aç</span>
+                        </button>
+                    </div>
+
+                    <div id="camera-active-container" class="hidden w-full h-full relative rounded-xl overflow-hidden bg-black flex items-center justify-center">
+                        <video id="webcam-video" autoplay playsinline muted class="hidden"></video>
+                        <canvas id="output-canvas" class="max-h-[500px] w-auto rounded-xl object-contain"></canvas>
+                        
+                        <div class="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/10 text-xs flex items-center space-x-2">
+                            <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                            <span class="font-mono text-slate-300" id="fps-counter">30 FPS</span>
+                        </div>
+
+                        <div class="absolute bottom-3 right-3">
+                            <button onclick="stopWebcam()" class="px-3 py-1.5 rounded-lg bg-red-600/80 hover:bg-red-500 backdrop-blur-md text-xs font-semibold text-white flex items-center space-x-1.5 transition">
+                                <i data-lucide="square" class="w-3.5 h-3.5"></i>
+                                <span>Durdur</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- UPLOAD MODE -->
+                <div id="view-upload" class="hidden flex-1 flex flex-col items-center justify-center p-6">
+                    <div id="drop-area" onclick="document.getElementById('file-input').click()" class="border-2 border-dashed border-darkborder hover:border-brand-500 rounded-2xl w-full h-64 flex flex-col items-center justify-center cursor-pointer transition bg-slate-800/40 hover:bg-slate-800/70 p-6 text-center">
+                        <input type="file" id="file-input" accept="image/*" class="hidden" onchange="handleFileUpload(event)">
+                        <div class="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-3">
+                            <i data-lucide="image-plus" class="w-7 h-7"></i>
+                        </div>
+                        <p class="text-sm font-semibold text-slate-200">Görsel Seçin veya Buraya Sürükleyin</p>
+                        <p class="text-xs text-slate-400 mt-1">PNG, JPG, JPEG veya WEBP (Maks 15MB)</p>
+                    </div>
+
+                    <div id="upload-preview-container" class="hidden w-full mt-4 flex flex-col items-center">
+                        <img id="upload-result-img" class="max-h-[460px] rounded-xl object-contain border border-darkborder shadow-xl">
+                    </div>
+                </div>
+
+                <!-- PRESETS MODE -->
+                <div id="view-presets" class="hidden flex-1 flex flex-col">
+                    <div class="text-xs text-slate-400 mb-3 flex items-center justify-between">
+                        <span>Test için desteklenen 8 yoga pozundan birini seçin:</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <button onclick="loadPreset('ArdhaChandrasana')" class="preset-card group p-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 hover:border-brand-500 transition text-left flex flex-col">
+                            <div class="w-full h-24 rounded-lg bg-slate-900 overflow-hidden mb-2 relative">
+                                <img src="/api/ideal_image/ArdhaChandrasana" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            </div>
+                            <span class="text-xs font-semibold text-slate-200 truncate">Ardha Chandrasana</span>
+                            <span class="text-[10px] text-slate-400">Yarım Ay Pozu</span>
+                        </button>
+
+                        <button onclick="loadPreset('BaddhaKonasana')" class="preset-card group p-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 hover:border-brand-500 transition text-left flex flex-col">
+                            <div class="w-full h-24 rounded-lg bg-slate-900 overflow-hidden mb-2 relative">
+                                <img src="/api/ideal_image/BaddhaKonasana" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            </div>
+                            <span class="text-xs font-semibold text-slate-200 truncate">Baddha Konasana</span>
+                            <span class="text-[10px] text-slate-400">Kelebek Pozu</span>
+                        </button>
+
+                        <button onclick="loadPreset('Downward_dog')" class="preset-card group p-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 hover:border-brand-500 transition text-left flex flex-col">
+                            <div class="w-full h-24 rounded-lg bg-slate-900 overflow-hidden mb-2 relative">
+                                <img src="/api/ideal_image/Downward_dog" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            </div>
+                            <span class="text-xs font-semibold text-slate-200 truncate">Downward Dog</span>
+                            <span class="text-[10px] text-slate-400">Aşağı Bakan Köpek</span>
+                        </button>
+
+                        <button onclick="loadPreset('Natarajasana')" class="preset-card group p-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 hover:border-brand-500 transition text-left flex flex-col">
+                            <div class="w-full h-24 rounded-lg bg-slate-900 overflow-hidden mb-2 relative">
+                                <img src="/api/ideal_image/Natarajasana" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            </div>
+                            <span class="text-xs font-semibold text-slate-200 truncate">Natarajasana</span>
+                            <span class="text-[10px] text-slate-400">Dansçı Pozu</span>
+                        </button>
+
+                        <button onclick="loadPreset('Triangle')" class="preset-card group p-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 hover:border-brand-500 transition text-left flex flex-col">
+                            <div class="w-full h-24 rounded-lg bg-slate-900 overflow-hidden mb-2 relative">
+                                <img src="/api/ideal_image/Triangle" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            </div>
+                            <span class="text-xs font-semibold text-slate-200 truncate">Triangle</span>
+                            <span class="text-[10px] text-slate-400">Üçgen Pozu</span>
+                        </button>
+
+                        <button onclick="loadPreset('UtkataKonasana')" class="preset-card group p-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 hover:border-brand-500 transition text-left flex flex-col">
+                            <div class="w-full h-24 rounded-lg bg-slate-900 overflow-hidden mb-2 relative">
+                                <img src="/api/ideal_image/UtkataKonasana" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            </div>
+                            <span class="text-xs font-semibold text-slate-200 truncate">Utkata Konasana</span>
+                            <span class="text-[10px] text-slate-400">Tanrıça Pozu</span>
+                        </button>
+
+                        <button onclick="loadPreset('Veerabhadrasana')" class="preset-card group p-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 hover:border-brand-500 transition text-left flex flex-col">
+                            <div class="w-full h-24 rounded-lg bg-slate-900 overflow-hidden mb-2 relative">
+                                <img src="/api/ideal_image/Veerabhadrasana" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            </div>
+                            <span class="text-xs font-semibold text-slate-200 truncate">Veerabhadrasana</span>
+                            <span class="text-[10px] text-slate-400">Savaşçı Pozu</span>
+                        </button>
+
+                        <button onclick="loadPreset('Vrukshasana')" class="preset-card group p-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 hover:border-brand-500 transition text-left flex flex-col">
+                            <div class="w-full h-24 rounded-lg bg-slate-900 overflow-hidden mb-2 relative">
+                                <img src="/api/ideal_image/Vrukshasana" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            </div>
+                            <span class="text-xs font-semibold text-slate-200 truncate">Vrukshasana</span>
+                            <span class="text-[10px] text-slate-400">Ağaç Pozu</span>
+                        </button>
+                    </div>
+
+                    <div id="preset-result-container" class="hidden mt-4 flex items-center justify-center">
+                        <img id="preset-result-img" class="max-h-[380px] rounded-xl object-contain border border-darkborder shadow-xl">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Diagnostics, Metrics & Comparison (5 Cols) -->
+        <div class="lg:col-span-5 flex flex-col space-y-4">
+
+            <!-- Primary Prediction Card -->
+            <div class="glass-panel rounded-2xl p-5 border border-darkborder">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Model Tahmini</span>
+                    <span id="badge-status" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">Beklemede</span>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    <div class="relative w-20 h-20 flex-shrink-0 flex items-center justify-center">
+                        <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                            <path class="text-slate-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            <path id="conf-ring" class="text-brand-500 transition-all duration-500" stroke-dasharray="0, 100" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        </svg>
+                        <span id="conf-text" class="absolute text-sm font-bold text-white">0%</span>
+                    </div>
+
+                    <div class="flex-1">
+                        <h2 id="pose-title" class="text-2xl font-extrabold text-white tracking-tight">-</h2>
+                        <p id="pose-desc" class="text-xs text-slate-400 mt-0.5">Analiz için bir poz seçin veya kamerayı açın</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ideal Pose Reference & Feedback Cards -->
+            <div class="glass-panel rounded-2xl p-5 border border-darkborder flex flex-col space-y-4">
+                
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">İdeal Referans Poz</span>
+                    <span class="text-xs text-brand-400 font-medium">Biyomekanik Hedef</span>
+                </div>
+
+                <div class="grid grid-cols-12 gap-3 items-center">
+                    <div class="col-span-4 h-28 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center">
+                        <img id="ideal-pose-img" src="" class="hidden w-full h-full object-cover">
+                        <span id="ideal-pose-placeholder" class="text-[10px] text-slate-500 text-center px-2">Referans Poz</span>
+                    </div>
+                    <div class="col-span-8 flex flex-col justify-center">
+                        <h4 id="ideal-pose-name" class="text-sm font-semibold text-slate-200">-</h4>
+                        <p id="ideal-pose-guidance" class="text-xs text-slate-400 mt-1">Algılanan vücut duruşunuz altın standart yoga anatomisi referans açılarıyla kıyaslanır.</p>
+                    </div>
+                </div>
+
+                <!-- Posture Correction Advice List -->
+                <div>
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Açı & Duruş Düzeltmeleri</span>
+                    <div id="feedback-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        <div class="text-xs text-slate-500 py-3 text-center border border-dashed border-darkborder rounded-xl">
+                            Henüz bir poz analiz edilmedi.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Radar / Bar Chart Comparison -->
+            <div class="glass-panel rounded-2xl p-5 border border-darkborder flex-1 flex flex-col min-h-[260px]">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Eklem Açıları Kıyaslama (°)</span>
+                    <span class="text-[10px] text-slate-500">Mevcut vs İdeal</span>
+                </div>
+                <div class="relative flex-1 min-h-[220px]">
+                    <canvas id="anglesChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Client Script -->
+    <script>
+        lucide.createIcons();
+
+        let currentMode = 'webcam';
+        let webcamStream = null;
+        let webcamInterval = null;
+        let isProcessingFrame = false;
+        let anglesChart = null;
+
+        // Initialize Chart
+        function initChart() {
+            const ctx = document.getElementById('anglesChart').getContext('2d');
+            anglesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Sol Dirsek', 'Sağ Dirsek', 'Sol Omuz', 'Sağ Omuz', 'Sol Diz', 'Sağ Diz', 'Sol Kalça', 'Sağ Kalça'],
+                    datasets: [
+                        {
+                            label: 'Mevcut Açı (°)',
+                            data: [0, 0, 0, 0, 0, 0, 0, 0],
+                            backgroundColor: 'rgba(99, 102, 241, 0.85)',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'İdeal Açı (°)',
+                            data: [0, 0, 0, 0, 0, 0, 0, 0],
+                            backgroundColor: 'rgba(16, 185, 129, 0.75)',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#94A3B8', font: { size: 10 } }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#64748B', font: { size: 9 } },
+                            grid: { display: false }
+                        },
+                        y: {
+                            ticks: { color: '#64748B', font: { size: 9 } },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        initChart();
+
+        function switchMode(mode) {
+            currentMode = mode;
+            stopWebcam();
+
+            ['webcam', 'upload', 'presets'].forEach(m => {
+                document.getElementById(`tab-${m}`).className = (m === mode) ? 
+                    'flex-1 py-2 px-3 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 transition-all bg-brand-600 text-white shadow-md' :
+                    'flex-1 py-2 px-3 rounded-lg text-sm font-semibold flex items-center justify-center space-x-2 transition-all text-slate-400 hover:text-white';
+                
+                document.getElementById(`view-${m}`).classList.toggle('hidden', m !== mode);
+            });
+        }
+
+        // --- PRESET LOADER ---
+        async function loadPreset(poseName) {
+            try {
+                const res = await fetch(`/api/sample/${poseName}`);
+                const data = await res.json();
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                updateDashboard(data);
+                const img = document.getElementById('preset-result-img');
+                img.src = 'data:image/jpeg;base64,' + data.annotated_image;
+                document.getElementById('preset-result-container').classList.remove('hidden');
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // --- UPLOAD HANDLER ---
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const res = await fetch('/api/predict_upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                updateDashboard(data);
+                document.getElementById('drop-area').classList.add('hidden');
+                const img = document.getElementById('upload-result-img');
+                img.src = 'data:image/jpeg;base64,' + data.annotated_image;
+                document.getElementById('upload-preview-container').classList.remove('hidden');
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // --- WEBCAM STREAM ---
+        async function startWebcam() {
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 640 }, height: { ideal: 480 } } 
+                });
+                const video = document.getElementById('webcam-video');
+                video.srcObject = webcamStream;
+                await video.play();
+
+                document.getElementById('camera-placeholder').classList.add('hidden');
+                document.getElementById('camera-active-container').classList.remove('hidden');
+
+                const canvas = document.getElementById('output-canvas');
+                canvas.width = 640;
+                canvas.height = 480;
+                const ctx = canvas.getContext('2d');
+
+                let lastTime = performance.now();
+                let frameCount = 0;
+
+                webcamInterval = setInterval(async () => {
+                    if (isProcessingFrame) return;
+                    isProcessingFrame = true;
+
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const base64Data = canvas.toDataURL('image/jpeg', 0.65).split(',')[1];
+
+                    try {
+                        const res = await fetch('/api/predict_frame', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ image: base64Data })
+                        });
+                        const data = await res.json();
+
+                        if (data.annotated_image) {
+                            const img = new Image();
+                            img.onload = () => {
+                                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            };
+                            img.src = 'data:image/jpeg;base64,' + data.annotated_image;
+                        }
+                        updateDashboard(data);
+                    } catch (e) {
+                        console.error(e);
+                    } finally {
+                        isProcessingFrame = false;
+                    }
+
+                    // FPS calculation
+                    frameCount++;
+                    const now = performance.now();
+                    if (now - lastTime >= 1000) {
+                        document.getElementById('fps-counter').innerText = `${frameCount} FPS`;
+                        frameCount = 0;
+                        lastTime = now;
+                    }
+                }, 160); // ~6-7 inferences/sec for smooth performance
+
+            } catch (err) {
+                alert("Kamera erişimi açılamadı. Lütfen izinleri kontrol edin: " + err.message);
+            }
+        }
+
+        function stopWebcam() {
+            if (webcamInterval) {
+                clearInterval(webcamInterval);
+                webcamInterval = null;
+            }
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(t => t.stop());
+                webcamStream = null;
+            }
+            document.getElementById('camera-placeholder')?.classList.remove('hidden');
+            document.getElementById('camera-active-container')?.classList.add('hidden');
+        }
+
+        // --- DASHBOARD UPDATER ---
+        function updateDashboard(data) {
+            if (!data || data.no_pose) {
+                document.getElementById('pose-title').innerText = "Poz Algılanamadı";
+                document.getElementById('pose-desc').innerText = data.message || "Tüm vücudun kadraja girmesini sağlayın.";
+                document.getElementById('badge-status').className = 'px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20';
+                document.getElementById('badge-status').innerText = 'Bekleniyor';
+                document.getElementById('conf-ring').setAttribute('stroke-dasharray', `0, 100`);
+                document.getElementById('conf-text').innerText = '0%';
+                return;
+            }
+
+            const conf = Math.round(data.confidence * 100);
+            document.getElementById('pose-title').innerText = data.pose;
+            document.getElementById('pose-desc').innerText = `AI Güven Oranı: %${conf}`;
+            document.getElementById('conf-text').innerText = `%${conf}`;
+            document.getElementById('conf-ring').setAttribute('stroke-dasharray', `${conf}, 100`);
+
+            const badge = document.getElementById('badge-status');
+            if (conf >= 80) {
+                badge.className = 'px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                badge.innerText = '✅ Yüksek Doğruluk';
+                document.getElementById('conf-ring').className = 'text-emerald-500 transition-all duration-500';
+            } else if (conf >= 65) {
+                badge.className = 'px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20';
+                badge.innerText = '⚠️ Orta Düzey';
+                document.getElementById('conf-ring').className = 'text-amber-500 transition-all duration-500';
+            } else {
+                badge.className = 'px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20';
+                badge.innerText = '❌ Düşük Güven';
+                document.getElementById('conf-ring').className = 'text-red-500 transition-all duration-500';
+            }
+
+            // Ideal Image
+            const idealImg = document.getElementById('ideal-pose-img');
+            const placeholder = document.getElementById('ideal-pose-placeholder');
+            if (data.ideal_image_url) {
+                idealImg.src = data.ideal_image_url;
+                idealImg.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                document.getElementById('ideal-pose-name').innerText = data.pose;
+            }
+
+            // Feedback List
+            const fbList = document.getElementById('feedback-list');
+            fbList.innerHTML = '';
+
+            if (!data.feedback || data.feedback.length === 0) {
+                fbList.innerHTML = `
+                    <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center space-x-2">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+                        <span><strong>Tebrikler!</strong> Duruşunuz ideal sınırlar içinde, vücut hizalamanız mükemmel.</span>
+                    </div>
+                `;
+            } else {
+                data.feedback.forEach(item => {
+                    const isIncrease = item.action === 'increase';
+                    const icon = isIncrease ? 'arrow-up' : 'arrow-down';
+                    const color = isIncrease ? 'text-amber-400' : 'text-indigo-400';
+                    fbList.innerHTML += `
+                        <div class="p-2.5 rounded-xl bg-slate-800/80 border border-darkborder text-xs flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span class="p-1 rounded-lg bg-slate-700/60 ${color}">
+                                    <i data-lucide="${icon}" class="w-3.5 h-3.5"></i>
+                                </span>
+                                <span class="text-slate-200 font-medium">${item.joint}</span>
+                            </div>
+                            <span class="font-semibold text-slate-300">${item.message}</span>
+                        </div>
+                    `;
+                });
+            }
+            lucide.createIcons();
+
+            // Update Chart
+            if (data.chart_data && anglesChart) {
+                anglesChart.data.labels = data.chart_data.labels;
+                anglesChart.data.datasets[0].data = data.chart_data.current;
+                anglesChart.data.datasets[1].data = data.chart_data.ideal;
+                anglesChart.update();
+            }
+        }
+    </script>
+</body>
+</html>
