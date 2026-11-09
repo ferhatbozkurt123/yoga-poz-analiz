@@ -62,9 +62,13 @@
             </div>
 
             <div class="flex items-center space-x-3">
+                <button id="btn-voice-toggle" onclick="toggleVoiceCoach()" class="inline-flex items-center text-xs text-slate-300 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+                    <i data-lucide="volume-2" id="voice-icon" class="w-3.5 h-3.5 mr-1.5 text-emerald-400"></i>
+                    <span id="voice-status-text">Sesli Koç: Açık</span>
+                </button>
                 <span class="inline-flex items-center text-xs text-slate-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse mr-2"></span>
-                    MediaPipe Pose + Deep Learning
+                    MediaPipe + Deep Learning
                 </span>
             </div>
         </div>
@@ -244,6 +248,19 @@
                     <div class="flex-1">
                         <h2 id="pose-title" class="text-2xl font-extrabold text-white tracking-tight">-</h2>
                         <p id="pose-desc" class="text-xs text-slate-400 mt-0.5">Analiz için bir poz seçin veya kamerayı açın</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs">
+                    <div class="flex items-center space-x-1.5">
+                        <i data-lucide="timer" class="w-4 h-4 text-indigo-400"></i>
+                        <span class="text-slate-400">Poz Süresi:</span>
+                        <span id="hold-timer-text" class="font-bold text-indigo-300 font-mono">0 sn</span>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <i data-lucide="check-check" class="w-4 h-4 text-emerald-400"></i>
+                        <span class="text-slate-400">Postür Uyumu:</span>
+                        <span id="alignment-score-text" class="font-bold text-emerald-300 font-mono">-%</span>
                     </div>
                 </div>
             </div>
@@ -473,6 +490,43 @@
             }
         }
 
+        // Voice Coach & Hold Tracker State
+        let voiceEnabled = true;
+        let lastSpokenText = "";
+        let lastSpokenTime = 0;
+        let currentHoldPose = "";
+        let holdStartTime = null;
+
+        function toggleVoiceCoach() {
+            voiceEnabled = !voiceEnabled;
+            const btnText = document.getElementById('voice-status-text');
+            const icon = document.getElementById('voice-icon');
+            if (voiceEnabled) {
+                btnText.innerText = "Sesli Koç: Açık";
+                icon.className = "w-3.5 h-3.5 mr-1.5 text-emerald-400";
+                speakFeedback("Sesli rehber aktif");
+            } else {
+                btnText.innerText = "Sesli Koç: Kapalı";
+                icon.className = "w-3.5 h-3.5 mr-1.5 text-slate-500";
+                if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            }
+        }
+
+        function speakFeedback(text) {
+            if (!voiceEnabled || !('speechSynthesis' in window)) return;
+            const now = Date.now();
+            if (text === lastSpokenText && now - lastSpokenTime < 6000) return;
+            if (now - lastSpokenTime < 3500) return;
+
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'tr-TR';
+            utterance.rate = 1.05;
+            window.speechSynthesis.speak(utterance);
+            lastSpokenText = text;
+            lastSpokenTime = now;
+        }
+
         function stopWebcam() {
             if (webcamInterval) {
                 clearInterval(webcamInterval);
@@ -482,6 +536,9 @@
                 webcamStream.getTracks().forEach(t => t.stop());
                 webcamStream = null;
             }
+            holdStartTime = null;
+            currentHoldPose = "";
+            document.getElementById('hold-timer-text').innerText = "0 sn";
             document.getElementById('camera-placeholder')?.classList.remove('hidden');
             document.getElementById('camera-active-container')?.classList.add('hidden');
         }
@@ -495,6 +552,10 @@
                 document.getElementById('badge-status').innerText = 'Bekleniyor';
                 document.getElementById('conf-ring').setAttribute('stroke-dasharray', `0, 100`);
                 document.getElementById('conf-text').innerText = '0%';
+                document.getElementById('alignment-score-text').innerText = '-%';
+                holdStartTime = null;
+                currentHoldPose = "";
+                document.getElementById('hold-timer-text').innerText = "0 sn";
                 return;
             }
 
@@ -503,6 +564,22 @@
             document.getElementById('pose-desc').innerText = `AI Güven Oranı: %${conf}`;
             document.getElementById('conf-text').innerText = `%${conf}`;
             document.getElementById('conf-ring').setAttribute('stroke-dasharray', `${conf}, 100`);
+
+            // Hold Timer calculation
+            if (conf >= 65) {
+                if (currentHoldPose !== data.pose) {
+                    currentHoldPose = data.pose;
+                    holdStartTime = Date.now();
+                    speakFeedback(`${data.pose} pozu algılandı`);
+                } else if (holdStartTime) {
+                    const elapsedSec = Math.floor((Date.now() - holdStartTime) / 1000);
+                    document.getElementById('hold-timer-text').innerText = `${elapsedSec} sn`;
+                }
+            } else {
+                holdStartTime = null;
+                currentHoldPose = "";
+                document.getElementById('hold-timer-text').innerText = "0 sn";
+            }
 
             const badge = document.getElementById('badge-status');
             if (conf >= 80) {
@@ -529,7 +606,12 @@
                 document.getElementById('ideal-pose-name').innerText = data.pose;
             }
 
-            // Feedback List
+            // Alignment Score calculation
+            const fbCount = data.feedback ? data.feedback.length : 0;
+            const alignmentScore = Math.max(50, Math.round(100 - (fbCount * 11)));
+            document.getElementById('alignment-score-text').innerText = `%${alignmentScore}`;
+
+            // Feedback List & Voice Announcement
             const fbList = document.getElementById('feedback-list');
             fbList.innerHTML = '';
 
@@ -540,6 +622,7 @@
                         <span><strong>Tebrikler!</strong> Duruşunuz ideal sınırlar içinde, vücut hizalamanız mükemmel.</span>
                     </div>
                 `;
+                if (conf >= 80) speakFeedback("Harika duruş, bu şekilde kalın");
             } else {
                 data.feedback.forEach(item => {
                     const isIncrease = item.action === 'increase';
@@ -557,6 +640,10 @@
                         </div>
                     `;
                 });
+                // Speak the first feedback item periodically
+                if (data.feedback[0]) {
+                    speakFeedback(`${data.feedback[0].joint} açısını ${data.feedback[0].message}`);
+                }
             }
             lucide.createIcons();
 
