@@ -236,7 +236,17 @@ def predict_frame():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
+    import webbrowser
+    import threading
+    import time
+
     port = int(os.environ.get('PORT', 5001))
     print(f"\n🚀 YogaAI Web Sunucusu Başlatılıyor: http://127.0.0.1:{port}\n")
+
+    def open_browser():
+        time.sleep(1.5)
+        webbrowser.open(f"http://127.0.0.1:{port}")
+
+    threading.Thread(target=open_browser, daemon=True).start()
     app.run(host='0.0.0.0', port=port, debug=False)
 
